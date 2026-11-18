@@ -1,5 +1,12 @@
 # Ingestion benchmark: Python vs Go vs Java vs TypeScript task SDKs
 
+Two sinks, each measured with n=6 per language and dataset size:
+
+- **Sink 1, Postgres → Postgres** (`COPY`→`COPY`): Postgres sets the pace. **1M → Go,
+  10M → Java** (least CPU). This is the `auto` default of `orders_elt_pipeline`.
+- **Sink 2, Postgres → MinIO** (gzip + S3 multipart): compression sets the pace. **1M → TypeScript,
+  10M → Go** (tie on time; least memory and overhead). [Jump to Sink 2](#sink-2-postgres--minio-s3).
+
 Every figure here comes from runs in this repo. The raw data is
 [results/bench_raw.jsonl](results/bench_raw.jsonl) (one JSON line per Dag run), and the tables
 below are generated from it by [bench/summarize.py](bench/summarize.py).
@@ -91,7 +98,7 @@ own warm-up per table, so **n = 6 per language and table** (48 measured runs, 4 
 failures). I extended to n=6 because rep 1 at 10M was an outlier for every language (see
 caveats). The method was not changed between the two batches.
 
-## Results
+## Sink 1 results: Postgres → Postgres
 
 Each cell is the **median [min–max]** over n runs.
 
@@ -181,6 +188,158 @@ Where the call could flip:
 ([dags/elt_common/__init__.py](dags/elt_common/__init__.py)). Any language can be forced per
 run (`make run INGEST_LANG=ts`) or per deployment (`INGEST_LANGUAGE=go`).
 
+## Sink 2: Postgres → MinIO (S3)
+
+The same comparison with an object store as the sink, run with the
+[`ingest_bench_s3`](dags/ingest_bench_s3.py) Dag.
+
+**The job.** `COPY src TO STDOUT` → the same per-row step → gzip **level 6** → **one object**
+per run, uploaded as **sequential 8 MiB multipart parts** (no parallel uploads in any
+language) → `CompleteMultipartUpload` (abort on error). The AWS SDKs' default extra upload
+checksums are set to `WHEN_REQUIRED` in all four, so no SDK does extra hashing.
+`verify_object` (not timed) reads each object back, decompresses it, and checks the row
+count, the byte count, and that every row ends with the batch id. It passed on every run.
+
+| lang | S3 client | gzip implementation |
+|---|---|---|
+| python | boto3 1.43.117 | `zlib.compressobj(6, wbits=31)`: system zlib |
+| go | aws-sdk-go-v2 s3 v1.115.0 | stdlib `compress/gzip`: **pure Go** |
+| java | AWS SDK v2 2.59.3 (`url-connection-client`, Netty/Apache excluded) | `GZIPOutputStream`, level 6: system zlib |
+| ts | @aws-sdk/client-s3 3.1171.0 | `zlib.createGzip({level: 6})`: **Node's bundled Chromium zlib** |
+
+Code: [ingest_s3_python.py](dags/elt_common/ingest_s3_python.py),
+[ingest_s3.go](handlers/go/ingest_s3.go),
+[IngestS3Task.java](handlers/java/src/main/java/demo/IngestS3Task.java),
+[main.ts](handlers/ts/src/main.ts) (`ingestS3`).
+
+**MinIO.** The official `minio/minio` image is no longer on Docker Hub, and
+`quay.io/minio/minio` refused anonymous pulls. The stack uses Chainguard's build of the MinIO
+server, `chainguard/minio@sha256:7618b82b…` (server `RELEASE.2026-11-16T00-11-40Z`, built
+from `chainguard-forks/minio`), in the same Docker VM, with a named volume.
+
+**Command** (2026-11-18, 15:23–15:56 UTC), n = 6 per language and table in one batch, one
+warm-up per table:
+
+```bash
+make bench-s3 REPEATS=6
+```
+
+Raw data: [results/s3/bench_raw.jsonl](results/s3/bench_raw.jsonl). Every run:
+[results/s3/bench_runs.md](results/s3/bench_runs.md).
+
+Source: `results/s3/bench_raw.jsonl` — 48 successful measured runs, 0 failed, 2 warm-up runs excluded.
+
+### orders_1m
+
+| lang | n | task e2e (s) | handler (s) | overhead (s) | rows/s | CPU in handler (s) | peak RSS (MB) | gzip output (MB) |
+|---|---|---|---|---|---|---|---|---|
+| python | 6 | 4.67 [4.24–5.48] | 4.00 [3.67–4.96] | 0.50 [0.37–1.15] | 250,146 [201,609–272,271] | 3.66 [3.30–4.57] | 147 [140–151] | 42.6 [42.6–42.6] |
+| go | 6 | 4.42 [3.84–6.33] | 4.11 [3.42–5.38] | 0.32 [0.11–0.96] | 243,360 [185,939–292,364] | 3.86 [3.07–4.53] | 26 [26–27] | 39.9 [39.9–39.9] |
+| java | 6 | 6.41 [4.08–15.66] | 5.61 [3.57–14.53] | 0.68 [0.48–1.39] | 179,332 [68,839–279,839] | 6.04 [4.11–13.02] | 173 [165–222] | 42.6 [42.6–42.6] |
+| ts | 6 | 3.63 [3.19–4.21] | 3.27 [2.88–3.80] | 0.36 [0.31–0.42] | 306,153 [263,453–347,460] | 3.56 [3.14–4.04] | 137 [134–138] | 40.8 [40.8–40.8] |
+
+### orders_10m
+
+| lang | n | task e2e (s) | handler (s) | overhead (s) | rows/s | CPU in handler (s) | peak RSS (MB) | gzip output (MB) |
+|---|---|---|---|---|---|---|---|---|
+| python | 6 | 46.53 [39.29–59.97] | 45.33 [38.46–58.92] | 0.96 [0.74–1.36] | 221,240 [169,710–259,999] | 42.40 [36.22–55.37] | 148 [141–151] | 425.9 [425.8–425.9] |
+| go | 6 | 41.98 [36.66–56.23] | 41.67 [36.27–55.98] | 0.26 [0.13–0.40] | 241,542 [178,632–275,669] | 38.67 [34.62–51.76] | 26 [26–30] | 398.9 [398.9–398.9] |
+| java | 6 | 43.40 [38.63–67.15] | 42.77 [37.86–62.81] | 0.70 [0.62–4.34] | 233,820 [159,199–264,116] | 41.38 [37.09–55.60] | 223 [162–233] | 425.9 [425.8–425.9] |
+| ts | 6 | 38.29 [29.61–67.07] | 37.96 [29.26–63.82] | 0.55 [0.28–3.26] | 263,489 [156,701–341,747] | 39.62 [30.88–56.37] | 134 [129–136] | 408.3 [408.1–408.3] |
+
+### Startup cost (noop task, all tables pooled)
+
+| lang | n | noop e2e (s) | noop TI duration (s) | process age at handler start (s) | noop process CPU total (s) | noop peak RSS (MB) |
+|---|---|---|---|---|---|---|
+| python | 12 | 0.56 [0.26–1.15] | 0.51 [0.23–1.04] | 0.42 [0.18–0.98] | 0.23 [0.10–0.54] | 94 [88–99] |
+| go | 12 | 0.28 [0.12–1.24] | 0.05 [0.03–0.13] | 0.07 [0.04–0.09] | 0.00 [0.00–0.01] | 13 [12–15] |
+| java | 12 | 0.79 [0.53–2.46] | 0.31 [0.21–0.73] | 0.58 [0.43–1.69] | 0.75 [0.60–1.95] | 90 [89–95] |
+| ts | 12 | 0.67 [0.41–1.55] | 0.08 [0.05–0.23] | 0.38 [0.27–0.87] | 0.22 [0.14–0.61] | 71 [71–71] |
+
+
+### Reading the S3 numbers
+
+**1. The bottleneck moved from Postgres to the client.** In every language, handler CPU is
+about equal to handler wall time (10M: 38.7–42.4 s of CPU for 38.0–45.3 s of wall). Gzip
+level 6 is the work, and it runs on one core in all four implementations. Java's CPU lead
+from the Postgres sink (2.66 s vs 6.23 s for Go) disappears here (41.38 s vs 38.67 s):
+compression swamps the per-row loop.
+
+**2. Time-to-finish now differs somewhat, but noise still blurs it.**
+- **1M:** TS has the lowest median task time (3.63 s) and the tightest range (3.19–4.21 s),
+  entirely below Python's (4.24–5.48 s). Go (4.42 s) overlaps TS. Java's median (6.41 s)
+  includes one 15.7 s run.
+- **10M:** the medians are TS 38.3 s, Go 42.0 s, Java 43.4 s, Python 46.5 s, but every range
+  spans roughly 30–67 s. I can't separate them with n=6.
+
+**3. The gzip library is part of the result.** The same 1.02 GB of input compressed to
+398.9 MB with Go's pure-Go gzip, 408.3 MB with Node's zlib fork, and 425.9 MB with system
+zlib (Python, Java). They give different compressed sizes at the same nominal level, and
+they cost different amounts of CPU. A faster library (e.g. `klauspost/compress` for Go,
+zlib-ng or ISA-L for Python) or parallel gzip would likely change the ranking more than the
+language does. That is **untested**.
+
+**4. Memory and per-task overhead keep the same order as in the Postgres sink.** Peak RSS at
+10M: Go 26 MB, TS 134 MB, Python 148 MB, Java 223 MB. Overhead (task e2e − handler) at 10M:
+Go 0.26 s, TS 0.55 s, Java 0.70 s, Python 0.96 s.
+
+### S3 decision
+
+| dataset | winner | why |
+|---|---|---|
+| **1M rows** | **TypeScript** | Lowest median task time (3.63 s) and least CPU (3.56 s). Its whole range is below Python's. Go is close (4.42 s, overlapping) at 5× less memory. |
+| **10M rows** | **Go** | Wall time and CPU can't be separated with n=6 (CPU medians 38.7–42.4 s). Go wins the tie-breakers: 26 MB vs 134–223 MB, and the lowest overhead (0.26 s). |
+
+The `auto` mapping in `orders_elt_pipeline` is still the **Postgres-sink** decision, because
+dbt reads `raw.orders` in Postgres. The S3 sink exists only in the benchmark Dag. Feeding dbt
+from MinIO would need a load step (or an engine like DuckDB) that this repo doesn't have.
+
+### Startup moved when the bundles grew
+
+The no-op startup in the S3 run was higher than in the Postgres run for every language. To
+check whether that was the Dag or the build, I re-ran the **unchanged Postgres bench Dag**
+with the **new** bundles: 3 rounds on 1M rows, then 3 more with MinIO stopped to rule out
+contention.
+
+```bash
+python3 bench/run_bench.py --dag ingest_bench --repeats 3 --langs python,go,java,ts --tables orders_1m --no-warmup --out results/startup_recheck.jsonl
+```
+
+```bash
+docker compose stop minio
+```
+
+```bash
+python3 bench/run_bench.py --dag ingest_bench --repeats 3 --langs python,go,java,ts --tables orders_1m --no-warmup --out results/startup_recheck_nominio.jsonl
+```
+
+```bash
+docker compose start minio
+```
+
+No-op medians, process age at handler start (s) / peak RSS (MB):
+
+| | bundles | python | go | java | ts |
+|---|---|---|---|---|---|
+| Postgres bench, first session (n=12) | Go 9.9 MB binary, 24 JARs, 203 KB `.mjs` | 0.12 / 175 | 0.03 / 11 | 0.41 / 86 | 0.14 / 51 |
+| Postgres bench, new bundles (n=3) | + AWS SDKs: 55 JARs, 840 KB `.mjs` | 0.48 / 90 | 0.05 / 13 | 0.55 / 90 | 0.29 / 71 |
+| same, MinIO stopped (n=3) | same | 0.26 / 86 | 0.08 / 12 | 0.53 / 89 | 0.29 / 71 |
+| S3 bench (n=12) | same | 0.42 / 94 | 0.07 / 13 | 0.58 / 90 | 0.38 / 71 |
+
+- **Java and TS**: about +0.13 s and +0.15 s to reach the handler, with the Dag unchanged and
+  MinIO ruled out. TS's memory baseline rose from 51 to 71 MB, which is deterministic. The
+  bundle growth is the likely cause. The containers were also recreated between sessions, so
+  this isn't a controlled A/B test, and n=3 is small.
+- **Python** changed in a way bundle size can't explain: memory fell (175 → ~90 MB) while
+  process age rose. The Python task process apparently started differently after the
+  containers were recreated. **I didn't find the cause.** As a consequence, Python's peak RSS
+  in the first Postgres session (175–208 MB) and in the S3 session (~147 MB) can't be compared.
+- The Postgres-sink startup table above was measured with the **old** bundles. With the
+  current bundles, Java and TS start ~0.15 s slower than shown there.
+
+This is the kind of regression nobody notices without a benchmark: adding a dependency to one
+task made every task of that language start slower.
+
 ## End-to-end pipeline runs
 
 `orders_elt_pipeline` was run once per language. These were run on their own, not as
@@ -229,9 +388,9 @@ re-parses a Dag file that imports Cosmos. That's a cost the stub languages don't
 - **One machine, Docker Desktop on macOS**, with client and server on the same VM and no
   network latency. Over a real network, client CPU matters even less and server/network
   matters more.
-- **Postgres → Postgres only.** The Postgres → S3/MinIO path in the brief was **not
-  implemented or measured**. With object storage as the sink, client CPU (serialization,
-  compression) would matter more, so the CPU column is the better predictor there.
+- **Two sinks, one source.** Postgres → Postgres and Postgres → MinIO (gzip TSV, one object).
+  No Parquet, no other sources, and no Airflow transfer operators (e.g. `SqlToS3Operator`)
+  as contenders. Every contender is hand-written code.
 - **JVM defaults.** No `-Xmx`, GC, CDS or AppCDS tuning. AppCDS or CRaC could cut Java's
   0.41 s exec-to-handler time. Go was built with `-trimpath -ldflags="-s -w"`.
 - **Implementations were tuned to parity, not to the limit.** The TS handler was first
@@ -241,7 +400,9 @@ re-parses a Dag file that imports Cosmos. That's a cost the stub languages don't
   not used in the tables).
 - Postgres server CPU is not in the CPU column. It is the same work for every language.
 
-## Raw numbers (every run)
+## Raw numbers, Sink 1: Postgres → Postgres (every run)
+
+Sink 2's runs: [results/s3/bench_runs.md](results/s3/bench_runs.md).
 
 Generated from `results/bench_raw.jsonl` (also in [results/bench_runs.md](results/bench_runs.md)).
 "e2e" = TI `queued_when → end_date`.

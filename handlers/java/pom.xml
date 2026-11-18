@@ -26,6 +26,31 @@
       <artifactId>jackson-annotations</artifactId>
       <version>2.22</version>
     </dependency>
+    <!-- Connection.extra arrives as a JSON string; parsing it needs databind,
+         which the SDK also only declares at runtime scope. -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.22.2</version>
+    </dependency>
+    <!-- AWS SDK v2 S3 with the JDK URLConnection client only: the default
+         Netty and Apache clients are excluded to keep the classpath (and JVM
+         startup) small. -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>s3</artifactId>
+      <version>2.59.3</version>
+      <exclusions>
+        <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>netty-nio-client</artifactId></exclusion>
+        <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>apache-client</artifactId></exclusion>
+        <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>apache5-client</artifactId></exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>url-connection-client</artifactId>
+      <version>2.59.3</version>
+    </dependency>
     <dependency>
       <groupId>org.postgresql</groupId>
       <artifactId>postgresql</artifactId>

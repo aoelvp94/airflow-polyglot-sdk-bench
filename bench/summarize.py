@@ -15,6 +15,7 @@ Columns
   peak RSS        VmHWM of the task process (whole process, incl. runtime)
   noop e2e        noop_<lang> queued_when -> end_date: pure startup cost incl. executor pickup
   noop RSS        VmHWM of the noop task process: runtime baseline
+  gzip output     (S3 sink only) compressed object size uploaded to MinIO
 """
 
 from __future__ import annotations
@@ -52,13 +53,16 @@ def main(path: str) -> None:
     tables = sorted({t for t, _ in groups}, key=lambda t: (len(t), t))
     for table in tables:
         print(f"### {table}\n")
-        print("| lang | n | task e2e (s) | handler (s) | overhead (s) | rows/s | CPU in handler (s) | peak RSS (MB) |")
-        print("|---|---|---|---|---|---|---|---|")
+        has_out = any("bytes_out" in r["ingest"] for (t, _), g in groups.items() if t == table for r in g)
+        print("| lang | n | task e2e (s) | handler (s) | overhead (s) | rows/s | CPU in handler (s) | peak RSS (MB) |"
+              + (" gzip output (MB) |" if has_out else ""))
+        print("|---|---|---|---|---|---|---|---|" + ("---|" if has_out else ""))
         for lang in LANG_ORDER:
             g = groups.get((table, lang))
             if not g:
                 continue
             ing = [r["ingest"] for r in g]
+            out_mb = fmt([i["bytes_out"] / 1e6 for i in ing], 1) if "bytes_out" in ing[0] else None
             print(
                 f"| {lang} | {len(g)} "
                 f"| {fmt([r['ingest_queued_to_end_s'] for r in g])} "
@@ -67,6 +71,7 @@ def main(path: str) -> None:
                 f"| {fmt([i.get('rows_per_s') for i in ing], 0)} "
                 f"| {fmt([i['cpu_handler_s'] for i in ing])} "
                 f"| {fmt([i['peak_rss_mb'] for i in ing], 0)} |"
+                + (f" {out_mb} |" if out_mb else "")
             )
         print()
 

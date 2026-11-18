@@ -8,10 +8,13 @@ One Airflow 3.4.0 Dag, `orders_elt_pipeline`, that:
 2. transforms it with **dbt** through an **astronomer-cosmos `DbtTaskGroup`**;
 3. checks that row counts agree from source to mart.
 
-The ingestion language was chosen by measurement (48 runs, n=6 per language and size).
+The ingestion language was chosen by measurement on two sinks: Postgres → Postgres and
+Postgres → MinIO (S3). That's 48 measured runs per sink, n=6 per language and size.
 See [BENCHMARK.md](BENCHMARK.md). Short version: Postgres sets the pace of COPY→COPY, so wall
 time is a tie. Go has the lowest startup and memory (15 MB). Java uses the least CPU at 10M
 (2.7 s vs 6.2 s Go and 13.0 s Python), and its 0.35 s JVM startup is then under 3% of the task.
+With MinIO as the sink, gzip dominates and every language is CPU-bound: TypeScript wins at 1M,
+and Go wins the 10M tie on memory (26 MB) and overhead.
 
 Everything runs locally in docker compose. Nothing is pushed or published.
 
@@ -72,6 +75,7 @@ Output is written in ~1 MiB chunks.
 | dbt project | [dbt/orders/](dbt/orders/) |
 | image (JRE 17 + Node 22 + Go/Java/TS bundles + dbt venv) | [Dockerfile](Dockerfile) |
 | stack | [docker-compose.yml](docker-compose.yml) |
+| S3 benchmark Dag (MinIO sink) | [dags/ingest_bench_s3.py](dags/ingest_bench_s3.py), `ingest_s3*` in each handler |
 | benchmark driver + summary | [bench/](bench/) |
 
 ### Cross-language contract
@@ -147,17 +151,24 @@ make bench REPEATS=3
 ```
 
 ```bash
+make bench-s3 REPEATS=6
+```
+
+```bash
 make down
 ```
 
 - `make up` builds the image (Go/Java/TS bundles are compiled inside it) and starts
-  metadb, the warehouse, api-server, scheduler and dag-processor.
+  metadb, the warehouse, MinIO (bucket `raw`, port 59000), api-server, scheduler and
+  dag-processor.
 - `make seed` creates `src.orders_1m` and `src.orders_10m` with deterministic data
   (about 45 s).
 - `make run` triggers `orders_elt_pipeline` (default `INGEST_LANG=auto`), waits, and prints
   task states plus the validation XCom.
-- `make bench` runs `ingest_bench` 3× per language and table, writing
+- `make bench` runs `ingest_bench` (Postgres sink) 3× per language and table, writing
   `results/bench_raw.jsonl` and `results/bench_summary.md`.
+- `make bench-s3` does the same with the MinIO sink (`ingest_bench_s3`), writing to
+  `results/s3/`.
 - `make clean` instead of `make down` also deletes the volumes.
 
 The UI is at http://localhost:18080. The simple auth manager runs with
@@ -190,6 +201,11 @@ Found while building this (verified in this repo):
   no-op reported its process had been alive ~0.4 s when the handler began, while the whole TI
   "duration" was ~0.2 s. The benchmark therefore measures startup as `queued_when → end_date`
   and reports TI duration only alongside it.
+- **The official `minio/minio` image is gone from Docker Hub**, and quay.io refused
+  anonymous pulls. Compose uses Chainguard's MinIO server build, pinned by digest.
+- **Adding the AWS SDKs slowed every Java and TS task's startup**, not just the S3 ones:
+  about +0.13 s and +0.15 s to reach the handler. See "Startup moved when the bundles grew"
+  in BENCHMARK.md.
 - **The base image is Debian trixie (hardened)**, which doesn't package JDK 17 or have `curl`.
   The Dockerfile copies `/opt/java/openjdk` from `eclipse-temurin:17-jre` and `node` from
   `node:22-bookworm-slim`. The api-server healthcheck uses Python.

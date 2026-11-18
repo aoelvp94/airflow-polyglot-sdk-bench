@@ -17,7 +17,9 @@ public final class IngestHandlers {
     Bundle bundle = new Bundle()
         .register("orders_elt_pipeline", "ingest_java", IngestTask.class)
         .register("ingest_bench", "ingest_java", IngestTask.class)
-        .register("ingest_bench", "noop_java", NoopTask.class);
+        .register("ingest_bench", "noop_java", NoopTask.class)
+        .register("ingest_bench_s3", "ingest_s3_java", IngestS3Task.class)
+        .register("ingest_bench_s3", "noop_java", NoopTask.class);
     Server.create(args).serve(bundle);
   }
 }

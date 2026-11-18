@@ -17,6 +17,8 @@ func main() {
 		airflow.TaskHandler("orders_elt_pipeline", "ingest_go", Ingest),
 		airflow.TaskHandler("ingest_bench", "ingest_go", Ingest),
 		airflow.TaskHandler("ingest_bench", "noop_go", Noop),
+		airflow.TaskHandler("ingest_bench_s3", "ingest_s3_go", IngestS3),
+		airflow.TaskHandler("ingest_bench_s3", "noop_go", Noop),
 	)
 	if err := bundle.Serve(); err != nil {
 		log.Fatal(err)

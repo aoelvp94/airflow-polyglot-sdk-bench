@@ -1,0 +1,81 @@
+python3 bench/run_bench.py --dag ingest_bench_s3 --repeats 6 --langs python,go,java,ts --tables orders_1m,orders_10m --out results/s3/bench_raw.jsonl
+[1/50] orders_1m  python rep=0 (warm-up) state=success noop_ti=0.221652s ingest_ti=4.986124s handler=4.325s rows=1000000 rss=151.008MB
+[2/50] orders_1m  python rep=1 state=success noop_ti=0.530415s ingest_ti=4.531003s handler=3.673s rows=1000000 rss=139.793MB
+[3/50] orders_1m  go     rep=1 state=success noop_ti=0.034376s ingest_ti=3.555079s handler=3.42s rows=1000000 rss=26.82MB
+[4/50] orders_1m  java   rep=1 state=success noop_ti=0.209302s ingest_ti=5.479122s handler=5.175s rows=1000000 rss=215.863MB
+[5/50] orders_1m  ts     rep=1 state=success noop_ti=0.08661s ingest_ti=3.016556s handler=2.917s rows=1000000 rss=134.449MB
+[6/50] orders_1m  go     rep=2 state=success noop_ti=0.033295s ingest_ti=4.095437s handler=4.022s rows=1000000 rss=26.48MB
+[7/50] orders_1m  java   rep=2 state=success noop_ti=0.317688s ingest_ti=9.667449s handler=9.399s rows=1000000 rss=167.191MB
+[8/50] orders_1m  ts     rep=2 state=success noop_ti=0.061038s ingest_ti=2.985987s handler=2.878s rows=1000000 rss=137MB
+[9/50] orders_1m  python rep=2 state=success noop_ti=0.639799s ingest_ti=4.198741s handler=3.798s rows=1000000 rss=150.336MB
+[10/50] orders_1m  java   rep=3 state=success noop_ti=0.228051s ingest_ti=3.832783s handler=3.573s rows=1000000 rss=165.379MB
+[11/50] orders_1m  ts     rep=3 state=success noop_ti=0.045765s ingest_ti=3.879769s handler=3.796s rows=1000000 rss=138.145MB
+[12/50] orders_1m  python rep=3 state=success noop_ti=0.31741s ingest_ti=4.512119s handler=4.161s rows=1000000 rss=148.141MB
+[13/50] orders_1m  go     rep=3 state=success noop_ti=0.129018s ingest_ti=5.876869s handler=5.378s rows=1000000 rss=26.691MB
+[14/50] orders_1m  ts     rep=4 state=success noop_ti=0.207804s ingest_ti=3.39774s handler=3.283s rows=1000000 rss=136.574MB
+[15/50] orders_1m  python rep=4 state=success noop_ti=0.301387s ingest_ti=5.439037s handler=4.96s rows=1000000 rss=151.219MB
+[16/50] orders_1m  go     rep=4 state=success noop_ti=0.078533s ingest_ti=4.520392s handler=4.2s rows=1000000 rss=26.227MB
+[17/50] orders_1m  java   rep=4 state=success noop_ti=0.72702s ingest_ti=6.387906s handler=6.045s rows=1000000 rss=173.648MB
+[18/50] orders_1m  python rep=5 state=success noop_ti=0.407488s ingest_ti=4.754136s handler=3.964s rows=1000000 rss=142.344MB
+[19/50] orders_1m  go     rep=5 state=success noop_ti=0.042313s ingest_ti=4.923413s handler=4.716s rows=1000000 rss=26.289MB
+[20/50] orders_1m  java   rep=5 state=success noop_ti=0.539358s ingest_ti=15.12677s handler=14.526s rows=1000000 rss=222.199MB
+[21/50] orders_1m  ts     rep=5 state=success noop_ti=0.075595s ingest_ti=3.538868s handler=3.405s rows=1000000 rss=135.664MB
+[22/50] orders_1m  go     rep=6 state=success noop_ti=0.043063s ingest_ti=3.790746s handler=3.726s rows=1000000 rss=26.441MB
+[23/50] orders_1m  java   rep=6 state=success noop_ti=0.262277s ingest_ti=5.157666s handler=4.73s rows=1000000 rss=172.016MB
+[24/50] orders_1m  ts     rep=6 state=success noop_ti=0.083283s ingest_ti=3.364018s handler=3.25s rows=1000000 rss=137.258MB
+[25/50] orders_1m  python rep=6 state=success noop_ti=0.225624s ingest_ti=4.472649s handler=4.032s rows=1000000 rss=146.332MB
+[26/50] orders_10m python rep=0 (warm-up) state=success noop_ti=0.237646s ingest_ti=54.312016s handler=53.78s rows=10000000 rss=153.148MB
+[27/50] orders_10m python rep=1 state=success noop_ti=0.320544s ingest_ti=59.929484s handler=58.924s rows=10000000 rss=145.215MB
+[28/50] orders_10m go     rep=1 state=success noop_ti=0.038426s ingest_ti=46.623272s handler=46.592s rows=10000000 rss=27.836MB
+[29/50] orders_10m java   rep=1 state=success noop_ti=0.633138s ingest_ti=45.423117s handler=45.061s rows=10000000 rss=162.121MB
+[30/50] orders_10m ts     rep=1 state=success noop_ti=0.226666s ingest_ti=66.78626s handler=63.816s rows=10000000 rss=135.258MB
+[31/50] orders_10m go     rep=2 state=success noop_ti=0.056445s ingest_ti=45.125306s handler=45.025s rows=10000000 rss=29.84MB
+[32/50] orders_10m java   rep=2 state=success noop_ti=0.318504s ingest_ti=38.344045s handler=37.862s rows=10000000 rss=231.148MB
+[33/50] orders_10m ts     rep=2 state=success noop_ti=0.058907s ingest_ti=37.555321s handler=37.44s rows=10000000 rss=133.934MB
+[34/50] orders_10m python rep=2 state=success noop_ti=0.541469s ingest_ti=48.77365s handler=47.779s rows=10000000 rss=150.93MB
+[35/50] orders_10m java   rep=3 state=success noop_ti=0.258121s ingest_ti=43.318542s handler=42.997s rows=10000000 rss=217.68MB
+[36/50] orders_10m ts     rep=3 state=success noop_ti=0.048863s ingest_ti=29.684625s handler=29.387s rows=10000000 rss=134.398MB
+[37/50] orders_10m python rep=3 state=success noop_ti=0.825653s ingest_ti=41.887111s handler=41.093s rows=10000000 rss=151.059MB
+[38/50] orders_10m go     rep=3 state=success noop_ti=0.056779s ingest_ti=36.518458s handler=36.275s rows=10000000 rss=25.77MB
+[39/50] orders_10m ts     rep=4 state=success noop_ti=0.085357s ingest_ti=29.485681s handler=29.261s rows=10000000 rss=136.242MB
+[40/50] orders_10m python rep=4 state=success noop_ti=0.751646s ingest_ti=52.302272s handler=51.619s rows=10000000 rss=149.801MB
+[41/50] orders_10m go     rep=4 state=success noop_ti=0.057722s ingest_ti=56.146575s handler=55.981s rows=10000000 rss=26.328MB
+[42/50] orders_10m java   rep=4 state=success noop_ti=0.241974s ingest_ti=41.319146s handler=40.575s rows=10000000 rss=180.457MB
+[43/50] orders_10m python rep=5 state=success noop_ti=0.485495s ingest_ti=39.241869s handler=38.462s rows=10000000 rss=145.188MB
+[44/50] orders_10m go     rep=5 state=success noop_ti=0.037213s ingest_ti=36.741583s handler=36.615s rows=10000000 rss=25.762MB
+[45/50] orders_10m java   rep=5 state=success noop_ti=0.308564s ingest_ti=64.618122s handler=62.814s rows=10000000 rss=232.836MB
+[46/50] orders_10m ts     rep=5 state=success noop_ti=0.074343s ingest_ti=63.184517s handler=62.704s rows=10000000 rss=128.574MB
+[47/50] orders_10m go     rep=6 state=success noop_ti=0.076396s ingest_ti=38.484783s handler=38.316s rows=10000000 rss=26.18MB
+[48/50] orders_10m java   rep=6 state=success noop_ti=0.312296s ingest_ti=42.938978s handler=42.541s rows=10000000 rss=229.141MB
+[49/50] orders_10m ts     rep=6 state=success noop_ti=0.088895s ingest_ti=38.644468s handler=38.478s rows=10000000 rss=130.805MB
+[50/50] orders_10m python rep=6 state=success noop_ti=1.03834s ingest_ti=44.195175s handler=42.885s rows=10000000 rss=141.273MB
+python3 bench/summarize.py results/s3/bench_raw.jsonl > results/s3/bench_summary.md
+Source: `results/s3/bench_raw.jsonl` — 48 successful measured runs, 0 failed, 2 warm-up runs excluded.
+
+### orders_1m
+
+| lang | n | task e2e (s) | handler (s) | overhead (s) | rows/s | CPU in handler (s) | peak RSS (MB) | gzip output (MB) |
+|---|---|---|---|---|---|---|---|---|
+| python | 6 | 4.67 [4.24–5.48] | 4.00 [3.67–4.96] | 0.50 [0.37–1.15] | 250,146 [201,609–272,271] | 3.66 [3.30–4.57] | 147 [140–151] | 42.6 [42.6–42.6] |
+| go | 6 | 4.42 [3.84–6.33] | 4.11 [3.42–5.38] | 0.32 [0.11–0.96] | 243,360 [185,939–292,364] | 3.86 [3.07–4.53] | 26 [26–27] | 39.9 [39.9–39.9] |
+| java | 6 | 6.41 [4.08–15.66] | 5.61 [3.57–14.53] | 0.68 [0.48–1.39] | 179,332 [68,839–279,839] | 6.04 [4.11–13.02] | 173 [165–222] | 42.6 [42.6–42.6] |
+| ts | 6 | 3.63 [3.19–4.21] | 3.27 [2.88–3.80] | 0.36 [0.31–0.42] | 306,153 [263,453–347,460] | 3.56 [3.14–4.04] | 137 [134–138] | 40.8 [40.8–40.8] |
+
+### orders_10m
+
+| lang | n | task e2e (s) | handler (s) | overhead (s) | rows/s | CPU in handler (s) | peak RSS (MB) | gzip output (MB) |
+|---|---|---|---|---|---|---|---|---|
+| python | 6 | 46.53 [39.29–59.97] | 45.33 [38.46–58.92] | 0.96 [0.74–1.36] | 221,240 [169,710–259,999] | 42.40 [36.22–55.37] | 148 [141–151] | 425.9 [425.8–425.9] |
+| go | 6 | 41.98 [36.66–56.23] | 41.67 [36.27–55.98] | 0.26 [0.13–0.40] | 241,542 [178,632–275,669] | 38.67 [34.62–51.76] | 26 [26–30] | 398.9 [398.9–398.9] |
+| java | 6 | 43.40 [38.63–67.15] | 42.77 [37.86–62.81] | 0.70 [0.62–4.34] | 233,820 [159,199–264,116] | 41.38 [37.09–55.60] | 223 [162–233] | 425.9 [425.8–425.9] |
+| ts | 6 | 38.29 [29.61–67.07] | 37.96 [29.26–63.82] | 0.55 [0.28–3.26] | 263,489 [156,701–341,747] | 39.62 [30.88–56.37] | 134 [129–136] | 408.3 [408.1–408.3] |
+
+### Startup cost (noop task, all tables pooled)
+
+| lang | n | noop e2e (s) | noop TI duration (s) | process age at handler start (s) | noop process CPU total (s) | noop peak RSS (MB) |
+|---|---|---|---|---|---|---|
+| python | 12 | 0.56 [0.26–1.15] | 0.51 [0.23–1.04] | 0.42 [0.18–0.98] | 0.23 [0.10–0.54] | 94 [88–99] |
+| go | 12 | 0.28 [0.12–1.24] | 0.05 [0.03–0.13] | 0.07 [0.04–0.09] | 0.00 [0.00–0.01] | 13 [12–15] |
+| java | 12 | 0.79 [0.53–2.46] | 0.31 [0.21–0.73] | 0.58 [0.43–1.69] | 0.75 [0.60–1.95] | 90 [89–95] |
+| ts | 12 | 0.67 [0.41–1.55] | 0.08 [0.05–0.23] | 0.38 [0.27–0.87] | 0.22 [0.14–0.61] | 71 [71–71] |
+

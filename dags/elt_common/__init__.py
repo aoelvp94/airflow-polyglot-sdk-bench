@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 
 WAREHOUSE_CONN_ID = "pg_warehouse"
+S3_CONN_ID = "minio_s3"
+S3_BENCH_BUCKET = "raw"
 LANGUAGES = ("python", "go", "java", "ts")
 SOURCE_TABLES = ("orders_1m", "orders_10m")
 

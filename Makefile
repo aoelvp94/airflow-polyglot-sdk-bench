@@ -9,7 +9,7 @@ AIRFLOW_PORT ?= 18080
 INGEST_LANG ?= $(or $(INGEST_LANGUAGE),auto)
 TABLE   ?= orders_1m
 
-.PHONY: build up seed bench report run down clean logs ps
+.PHONY: build up seed bench bench-s3 report report-s3 run down clean logs ps
 
 build:            ## Build the Airflow image (Go/Java/TS bundles + dbt manifest)
 	$(COMPOSE) build
@@ -26,6 +26,15 @@ bench:            ## Run the ingestion benchmark: REPEATS x LANGS x TABLES, then
 	python3 bench/run_bench.py --repeats $(REPEATS) --langs $(LANGS) --tables $(TABLES) --out results/bench_raw.jsonl
 	python3 bench/summarize.py results/bench_raw.jsonl > results/bench_summary.md
 	@cat results/bench_summary.md
+
+bench-s3:         ## Same benchmark with the MinIO sink (Postgres -> gzip -> S3 multipart)
+	python3 bench/run_bench.py --dag ingest_bench_s3 --repeats $(REPEATS) --langs $(LANGS) --tables $(TABLES) --out results/s3/bench_raw.jsonl
+	python3 bench/summarize.py results/s3/bench_raw.jsonl > results/s3/bench_summary.md
+	@cat results/s3/bench_summary.md
+
+report-s3:
+	python3 bench/summarize.py results/s3/bench_raw.jsonl > results/s3/bench_summary.md
+	@cat results/s3/bench_summary.md
 
 report:           ## Re-summarize existing raw benchmark results
 	python3 bench/summarize.py results/bench_raw.jsonl > results/bench_summary.md

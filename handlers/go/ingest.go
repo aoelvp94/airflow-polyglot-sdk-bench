@@ -42,29 +42,13 @@ func Ingest(actx airflow.Context, args IngestArgs) (map[string]any, error) {
 	m := startMetrics()
 	logger := actx.Logger()
 
-	conn, err := actx.Client().GetConnection(actx, cfg.ConnID)
-	if err != nil {
-		return nil, fmt.Errorf("get connection %q: %w", cfg.ConnID, err)
-	}
-	pgcfg, err := pgx.ParseConfig("")
-	if err != nil {
-		return nil, err
-	}
-	pgcfg.Host, pgcfg.Port, pgcfg.Database = conn.Host, uint16(conn.Port), conn.Path
-	if conn.Login != nil {
-		pgcfg.User = *conn.Login
-	}
-	if conn.Password != nil {
-		pgcfg.Password = *conn.Password
-	}
-
 	ctx := context.Context(actx)
-	src, err := pgx.ConnectConfig(ctx, pgcfg)
+	src, err := pgConnect(actx, cfg.ConnID)
 	if err != nil {
 		return nil, fmt.Errorf("connect (source): %w", err)
 	}
 	defer src.Close(ctx)
-	dst, err := pgx.ConnectConfig(ctx, pgcfg.Copy())
+	dst, err := pgConnect(actx, cfg.ConnID)
 	if err != nil {
 		return nil, fmt.Errorf("connect (target): %w", err)
 	}
@@ -122,6 +106,26 @@ func Ingest(actx airflow.Context, args IngestArgs) (map[string]any, error) {
 	out["row_count"] = rows
 	logger.InfoContext(actx, "ingest finished", "rows", rows, "elapsed_s", out["handler_elapsed_s"])
 	return out, nil
+}
+
+// pgConnect opens a connection from an Airflow "postgres" connection.
+func pgConnect(actx airflow.Context, connID string) (*pgx.Conn, error) {
+	conn, err := actx.Client().GetConnection(actx, connID)
+	if err != nil {
+		return nil, fmt.Errorf("get connection %q: %w", connID, err)
+	}
+	pgcfg, err := pgx.ParseConfig("")
+	if err != nil {
+		return nil, err
+	}
+	pgcfg.Host, pgcfg.Port, pgcfg.Database = conn.Host, uint16(conn.Port), conn.Path
+	if conn.Login != nil {
+		pgcfg.User = *conn.Login
+	}
+	if conn.Password != nil {
+		pgcfg.Password = *conn.Password
+	}
+	return pgx.ConnectConfig(actx, pgcfg)
 }
 
 func transform(r io.Reader, w io.Writer, batchID string, rows, bytesIn *int64) error {

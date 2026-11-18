@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Drive the `ingest_bench` Dag: one Dag run per (table, repetition, language).
+Drive `ingest_bench` (Postgres sink) or `ingest_bench_s3` (MinIO sink, --dag):
+one Dag run per (table, repetition, language).
 
 For each source table:
   * one warm-up run (recorded with warmup=true, excluded from stats) so the
@@ -26,7 +27,6 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 import airflow_api as api  # noqa: E402
 
-DAG_ID = "ingest_bench"
 
 
 def _ts(s: str | None) -> dt.datetime | None:
@@ -38,13 +38,13 @@ def _secs(a: str | None, b: str | None) -> float | None:
     return round((tb - ta).total_seconds(), 3) if ta and tb else None
 
 
-def one_run(lang: str, table: str, rep: int, warmup: bool) -> dict:
-    run_id = api.trigger(DAG_ID, {"lang": lang, "source_table": table})
-    state = api.wait_run(DAG_ID, run_id)
-    tis = api.task_instances(DAG_ID, run_id)
-    row: dict = {"lang": lang, "table": table, "rep": rep, "warmup": warmup, "run_id": run_id, "state": state}
-    for kind in ("noop", "ingest"):
-        ti = tis[f"{kind}_{lang}"]
+def one_run(dag_id: str, ingest_prefix: str, lang: str, table: str, rep: int, warmup: bool) -> dict:
+    run_id = api.trigger(dag_id, {"lang": lang, "source_table": table})
+    state = api.wait_run(dag_id, run_id)
+    tis = api.task_instances(dag_id, run_id)
+    row: dict = {"dag_id": dag_id, "lang": lang, "table": table, "rep": rep, "warmup": warmup, "run_id": run_id, "state": state}
+    for kind, prefix in (("noop", "noop_"), ("ingest", ingest_prefix)):
+        ti = tis[f"{prefix}{lang}"]
         row[f"{kind}_ti_state"] = ti["state"]
         row[f"{kind}_ti_duration_s"] = ti.get("duration")
         # start_date is stamped after the coordinator has begun spawning the
@@ -55,7 +55,7 @@ def one_run(lang: str, table: str, rep: int, warmup: bool) -> dict:
         for f in ("queued_when", "start_date", "end_date"):
             row[f"{kind}_{f}"] = ti.get(f)
     if state == "success":
-        rec = api.xcom(DAG_ID, run_id, "record")
+        rec = api.xcom(dag_id, run_id, "record")
         row["noop"] = rec["noop"]
         row["ingest"] = rec["ingest"]
     return row
@@ -63,6 +63,7 @@ def one_run(lang: str, table: str, rep: int, warmup: bool) -> dict:
 
 def main() -> None:
     p = argparse.ArgumentParser()
+    p.add_argument("--dag", default="ingest_bench", help="ingest_bench (Postgres sink) or ingest_bench_s3 (MinIO sink)")
     p.add_argument("--repeats", type=int, default=3)
     p.add_argument("--langs", default="python,go,java,ts")
     p.add_argument("--tables", default="orders_1m,orders_10m")
@@ -76,8 +77,9 @@ def main() -> None:
     out = pathlib.Path(a.out)
     out.parent.mkdir(parents=True, exist_ok=True)
 
-    api.wait_for_dag(DAG_ID)
-    api.unpause(DAG_ID)
+    ingest_prefix = "ingest_s3_" if a.dag == "ingest_bench_s3" else "ingest_"
+    api.wait_for_dag(a.dag)
+    api.unpause(a.dag)
 
     plan: list[tuple[str, str, int, bool]] = []
     for table in tables:
@@ -90,7 +92,7 @@ def main() -> None:
 
     with out.open("a") as f:
         for i, (lang, table, rep, warm) in enumerate(plan, 1):
-            row = one_run(lang, table, rep, warm)
+            row = one_run(a.dag, ingest_prefix, lang, table, rep, warm)
             row["recorded_at"] = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
             f.write(json.dumps(row) + "\n")
             f.flush()
