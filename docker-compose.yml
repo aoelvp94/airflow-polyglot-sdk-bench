@@ -1,0 +1,121 @@
+name: airflow-polyglot-elt
+
+x-airflow-common: &airflow-common
+  build: .
+  image: airflow-polyglot-elt:local
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "False"
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@metadb:5432/airflow
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-api-server:8080/execution/
+    AIRFLOW__API_AUTH__JWT_SECRET: local-demo-only-not-a-secret
+    # Shared by all components so the api-server can fetch task logs from the scheduler's log server.
+    AIRFLOW__API__SECRET_KEY: local-demo-only-not-a-secret
+    # Local demo only: every request is admin, so `make bench` can call the REST API without a token.
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.api_fastapi.auth.managers.simple.simple_auth_manager.SimpleAuthManager
+    AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "True"
+    AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: "30"
+
+    # Dag bundles: the Python Dag files, plus one bundle per language that holds
+    # only task-handler executables (each with an .airflowignore of "*").
+    AIRFLOW__DAG_PROCESSOR__DAG_BUNDLE_CONFIG_LIST: >-
+      [
+       {"name": "dags-folder", "classpath": "airflow.dag_processing.bundles.local.LocalDagBundle", "kwargs": {}},
+       {"name": "go-task-handlers", "classpath": "airflow.dag_processing.bundles.local.LocalDagBundle", "kwargs": {"path": "/opt/airflow/handlers/go"}},
+       {"name": "java-task-handlers", "classpath": "airflow.dag_processing.bundles.local.LocalDagBundle", "kwargs": {"path": "/opt/airflow/handlers/java"}},
+       {"name": "ts-task-handlers", "classpath": "airflow.dag_processing.bundles.local.LocalDagBundle", "kwargs": {"path": "/opt/airflow/handlers/ts"}}
+      ]
+    # Queue -> coordinator routing for @task.stub(queue=...).
+    AIRFLOW__SDK__COORDINATORS: >-
+      {
+       "go":   {"classpath": "airflow.sdk.coordinators.executable.ExecutableCoordinator", "kwargs": {"task_handler_bundle_name": "go-task-handlers"}},
+       "jdk17": {"classpath": "airflow.sdk.coordinators.java.JavaCoordinator", "kwargs": {"task_handler_bundle_name": "java-task-handlers", "java_executable": "/opt/java/openjdk/bin/java", "main_class": "demo.IngestHandlers"}},
+       "ts":   {"classpath": "airflow.sdk.coordinators.node.NodeCoordinator", "kwargs": {"task_handler_bundle_name": "ts-task-handlers", "node_executable": "/usr/local/bin/node"}}
+      }
+    AIRFLOW__SDK__QUEUE_TO_COORDINATOR: '{"golang": "go", "java": "jdk17", "typescript": "ts"}'
+
+    AIRFLOW_CONN_PG_WAREHOUSE: postgres://wh:wh@warehouse:5432/warehouse
+    # Default ingestion language for orders_elt_pipeline: auto = winner per table (see BENCHMARK.md).
+    INGEST_LANGUAGE: ${INGEST_LANGUAGE:-auto}
+  volumes:
+    - ./dags:/opt/airflow/dags
+  depends_on: &airflow-depends
+    metadb:
+      condition: service_healthy
+    warehouse:
+      condition: service_healthy
+
+services:
+  metadb:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - metadb:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 20
+
+  warehouse:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: wh
+      POSTGRES_PASSWORD: wh
+      POSTGRES_DB: warehouse
+    command: >-
+      postgres -c shared_buffers=1GB -c max_wal_size=8GB -c checkpoint_timeout=15min
+               -c maintenance_work_mem=512MB
+    shm_size: 1gb
+    ports:
+      - "55432:5432"
+    volumes:
+      - warehouse:/var/lib/postgresql/data
+      - ./sql/00_schema.sql:/docker-entrypoint-initdb.d/00_schema.sql:ro
+      - ./sql:/sql:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "wh", "-d", "warehouse"]
+      interval: 5s
+      retries: 20
+
+  airflow-init:
+    <<: *airflow-common
+    command: ["db", "migrate"]
+    restart: "no"
+
+  airflow-api-server:
+    <<: *airflow-common
+    command: ["api-server"]
+    ports:
+      - "${AIRFLOW_PORT:-18080}:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/v2/monitor/health')"]
+      interval: 10s
+      retries: 30
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: ["scheduler"]
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-dag-processor:
+    <<: *airflow-common
+    command: ["dag-processor"]
+    depends_on:
+      <<: *airflow-depends
+      airflow-init:
+        condition: service_completed_successfully
+
+volumes:
+  metadb:
+  warehouse:

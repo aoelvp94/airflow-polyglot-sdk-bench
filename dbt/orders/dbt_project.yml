@@ -1,0 +1,25 @@
+name: orders
+version: "1.0.0"
+config-version: 2
+profile: orders
+
+model-paths: ["models"]
+test-paths: ["tests"]
+target-path: target
+
+vars:
+  # Set per run by Cosmos (operator_args.vars) from the ingestion result dict.
+  # Null means "every batch in raw.orders", which is what `dbt parse` sees.
+  batch_id: null
+
+models:
+  orders:
+    +tags: ["orders"]
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table
+
+data_tests:
+  orders:
+    +tags: ["orders"]

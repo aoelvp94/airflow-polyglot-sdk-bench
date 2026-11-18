@@ -1,0 +1,7 @@
+version: 2
+sources:
+  - name: raw
+    schema: raw
+    tables:
+      - name: orders
+        description: Landed by the ingest_<language> task; one batch_id per load.

@@ -1,0 +1,21 @@
+{
+  "name": "ingest-handlers-ts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "pack": "airflow-ts-pack src/main.ts --outdir dist"
+  },
+  "dependencies": {
+    "@apache-airflow/ts-sdk": "1.0.0",
+    "pg": "^8.16.0",
+    "pg-copy-streams": "^7.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.15.0",
+    "@types/pg-copy-streams": "^1.2.5",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.8.0"
+  }
+}

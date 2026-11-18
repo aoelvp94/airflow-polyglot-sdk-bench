@@ -1,0 +1,14 @@
+# Used only for `dbt parse` at image build and for manual runs.
+# Under Airflow, Cosmos generates the profile from the pg_warehouse connection.
+orders:
+  target: local
+  outputs:
+    local:
+      type: postgres
+      host: "{{ env_var('WH_HOST', 'warehouse') }}"
+      port: 5432
+      user: "{{ env_var('WH_USER', 'wh') }}"
+      password: "{{ env_var('WH_PASSWORD', 'wh') }}"
+      dbname: warehouse
+      schema: analytics
+      threads: 2

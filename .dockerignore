@@ -1,0 +1,9 @@
+**/node_modules
+**/target
+**/dist
+**/.DS_Store
+results
+bench
+dags
+sql
+*.md
